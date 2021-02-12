@@ -229,7 +229,7 @@ namespace BRNBootDumper
             //continuously parse state using the current line
             while (ParseState(serial.PeekCurrentLine()) != target)
             {
-                Thread.Sleep(100);
+                Thread.Sleep(1);
                 CheckTimeout();
             }
         }
