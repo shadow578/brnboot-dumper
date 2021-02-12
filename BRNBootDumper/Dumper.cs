@@ -11,9 +11,14 @@ namespace BRNBootDumper
     class Dumper
     {
         /// <summary>
+        /// should debug prints be enabled (to console)
+        /// </summary>
+        public bool EnableDebugPrints { get; set; } = true;
+
+        /// <summary>
         /// serial connection to brnboot device
         /// </summary>
-        SerialPortWrapper serial;
+        private SerialPortWrapper serial;
 
         /// <summary>
         /// open the serial connection to the target device
@@ -39,9 +44,10 @@ namespace BRNBootDumper
         /// <param name="startAddr">address to start dumping at</param>
         /// <param name="endAddr">address to end dumping</param>
         /// <param name="blockSize">how many bytes to dump in one go. has to be between 1 and 10000</param>
-        public void DumpAdr(Stream output, long startAddr, long endAddr, int blockSize = 1024)
+        /// <returns>dump error count</returns>
+        public int DumpAdr(Stream output, long startAddr, long endAddr, int blockSize = 1024)
         {
-            DumpCnt(output, startAddr, endAddr - startAddr, blockSize);
+            return DumpCnt(output, startAddr, endAddr - startAddr, blockSize);
         }
 
         /// <summary>
@@ -51,7 +57,8 @@ namespace BRNBootDumper
         /// <param name="startAddr">address to start dumping at</param>
         /// <param name="count">how many bytes to dump</param>
         /// <param name="blockSize">how many bytes to dump in one go. has to be between 1 and 10000</param>
-        public void DumpCnt(Stream output, long startAddr, long count, int blockSize = 1024)
+        /// <returns>dump error count</returns>
+        public int DumpCnt(Stream output, long startAddr, long count, int blockSize = 1024)
         {
             //check count is valid
             if (count < 0)
@@ -121,14 +128,14 @@ namespace BRNBootDumper
                         string ln = serial.NextLine();
                         totalRead += ParseLine(output, ln);
 
-                        // update console title to reflect progress
-                        Console.Title = $"ADR: 0x{ToHex(currentAddress),-10} | LEFT: {bytesLeftToRead - totalRead,-10} | PROGRESS {(count - (bytesLeftToRead - totalRead)) * 100 / count}%";
+                        //show progress
+                        PrintProgress(currentAddress, count, count - (bytesLeftToRead - totalRead));
                     }
                 }
                 while (ParseState(serial.PeekCurrentLine()) != IDLE);
 
                 // check we actually read the full block
-                if(totalRead != block)
+                if (totalRead != block)
                 {
                     DB($"!! read different number than wanted (WANTED= {block} GOT= {totalRead})");
                     dumpErrorCount++;
@@ -147,6 +154,7 @@ namespace BRNBootDumper
             ClearAll();
 
             DB($"dumper finished, with {dumpErrorCount} errors");
+            return dumpErrorCount;
         }
 
         /// <summary>
@@ -180,10 +188,7 @@ namespace BRNBootDumper
                 // parse segemnt into a byte
                 string segment = segments[i];
                 if (!byte.TryParse(segment, NumberStyles.HexNumber, null, out byte value))
-                {
-                    DB($"could not parse segment {i}: {segment}!");
-                    continue;
-                }
+                    throw new InvalidDataException($"Could not parse segment {i}: {segment} of input {ln}");
 
                 // write the byte to the output
                 output.WriteByte(value);
@@ -245,9 +250,6 @@ namespace BRNBootDumper
         void Send(string s)
         {
             serial.Write(s);
-
-            //TODO: slow processor (??)
-            //Thread.Sleep(10);
         }
 
         /// <summary>
@@ -280,12 +282,28 @@ namespace BRNBootDumper
         }
 
         /// <summary>
+        /// print progress info to console
+        /// </summary>
+        /// <param name="currentAddress">the address we're currently dumping at</param>
+        /// <param name="totalBytesToRead">the total number of bytes we have to read</param>
+        /// <param name="totalBytesRead">the total number of bytes we have already read</param>
+        void PrintProgress(long currentAddress, long totalBytesToRead, long totalBytesRead)
+        {
+            //print progress to console title when debug prints are enabled (could not read anything anyways)
+            if (EnableDebugPrints)
+                Console.Title = $"ADR 0x{ToHex(currentAddress),-10} | READ {totalBytesRead,-10} bytes | PROGRESS: {(totalBytesRead * 100) / totalBytesToRead}%";
+            else
+                Console.Write($"ADR 0x{ToHex(currentAddress),-10} | READ {totalBytesRead,-10} bytes | PROGRESS: {(totalBytesRead * 100) / totalBytesToRead}% \r");
+        }
+
+        /// <summary>
         /// Debug print to console
         /// </summary>
         /// <param name="ln">line to print</param>
         void DB(string ln)
         {
-            Console.WriteLine(ln);
+            if (EnableDebugPrints)
+                Console.WriteLine(ln);
         }
     }
 }
