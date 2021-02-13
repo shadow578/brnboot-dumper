@@ -11,9 +11,63 @@ namespace BRNBootDumper
     {
         public static void Main()
         {
+            UploadUI();
+        }
+
+
+        static void UploadUI()
+        {
+            #region User interface
+            //show user interface
+            SerialUserIF(out string port);
+            UploadUserIF(out long targetAddress, out string filePath);
+
+            //print infos and make user confirm
+            long fileSize = new FileInfo(filePath).Length;
+            Console.Clear();
+            Console.WriteLine($@"
+Target Device: {port}
+
+File: {filePath}
+File Size: {fileSize}
+Upload Target Address: 0x{ToHex(targetAddress)}
+Upload End Address:    0x{ToHex(targetAddress + fileSize)}
+
+Press <ENTER> to start upload");
+            Console.ReadLine();
+            #endregion
+
+            //initailize xmodem uploader and connect
+            Console.WriteLine("initialize uploader");
+            XModemUpload up = new XModemUpload();
+
+            Console.WriteLine($"connecting to target device on {port}...");
+            up.Open(port);
+
+            // open file
+            using (FileStream file = File.OpenRead(filePath))
+            {
+
+                // start upload timer
+                Console.WriteLine("Start memory upload");
+                Stopwatch sw = new Stopwatch();
+                sw.Restart();
+
+                // upload to device
+                up.UploadToMemory(targetAddress, file);
+
+                //stop timer and print time taken
+                sw.Stop();
+                Console.WriteLine($"Finished uploading to device after {Math.Floor(sw.Elapsed.TotalSeconds)} seconds");
+            }
+        }
+
+        static void DumperUI()
+        {
             #region user interface
             //show user interface
-            UserIF(out string port, out long startAddress, out long endAddress, out int blockSize, out bool shouldVerifyDump, out bool shouldVerboseLog);
+            SerialUserIF(out string port);
+            DumperUserIF(out long startAddress, out long endAddress, out int blockSize, out bool shouldVerifyDump, out bool shouldVerboseLog);
 
             //print infos and make user confirm
             long dumpLenghtBytes = endAddress - startAddress;
@@ -105,41 +159,22 @@ Press <ENTER> to start dumping");
             Console.WriteLine($"finished dumping {output.Length} bytes after {Math.Floor(sw.Elapsed.TotalSeconds)} seconds with {errorCount} errors");
 
             //warn if there were errors while dumping
-            if(errorCount != 0)
+            if (errorCount != 0)
                 Console.WriteLine("!! Warning: there were errors while dumping");
         }
 
         /// <summary>
         /// show a interactive user interface to get dump parameters
         /// </summary>
-        /// <param name="port">the serial port, is contained in SerialPort.GetPortNames()</param>
         /// <param name="startAddress">the start address of the dump</param>
         /// <param name="endAddress">the end address of the dump</param>
         /// <param name="blockSize">the block size for dumping</param>
         /// <param name="doVerifyDump">should we verify the dumped contents?</param>
         /// <param name="doVerboseLogging">should we write verbose log to console?</param>
-        static void UserIF(out string port,
-            out long startAddress, out long endAddress,
+        static void DumperUserIF(out long startAddress, out long endAddress,
             out int blockSize,
             out bool doVerifyDump, out bool doVerboseLogging)
         {
-            #region Serial port
-            // list ports to user
-            Console.WriteLine("Choose the Serial port the device is connected to. \nAvailable Ports are:");
-            foreach (string p in SerialPort.GetPortNames())
-                Console.WriteLine($" {p}");
-
-            // show warning if there are no ports
-            if (SerialPort.GetPortNames().Length <= 0)
-                Console.WriteLine(" No ports available!");
-
-            // read a VALID port name
-            do
-            {
-                port = UserInput("Target Port> ");
-            } while (!SerialPort.GetPortNames().Contains(port));
-            #endregion
-
             #region start / end address
             // ask for start and end address
             string tmp;
@@ -176,6 +211,55 @@ Press <ENTER> to start dumping");
             Console.Write("[y/N]: ");
             tmp = Console.ReadLine();
             doVerboseLogging = tmp.Equals("y", StringComparison.OrdinalIgnoreCase);
+            #endregion
+        }
+
+        /// <summary>
+        /// show a interactive user interface to get upload parameters
+        /// </summary>
+        /// <param name="targetAddress">the address to upload to</param>
+        /// <param name="uploadPath">the file to upload</param>
+        static void UploadUserIF(out long targetAddress, out string uploadPath)
+        {
+            #region target address
+            // ask for target  address
+            string tmp;
+            do
+            {
+                tmp = UserInput($"Upload Target Address (default 0x{ToHex(BRNBootConstants.MEMORY_UPLOAD_DEFAULT_ADDR)})> 0x");
+            } while (!long.TryParse(tmp, NumberStyles.HexNumber, null, out targetAddress));
+            #endregion
+
+            #region file select
+            //ask for target file path
+            do
+            {
+                uploadPath = UserInput("Upload file path > ");
+            } while (!File.Exists(uploadPath));
+            #endregion
+        }
+
+        /// <summary>
+        /// show a interactive user interface to get target device port
+        /// </summary>
+        /// <param name="port">the serial port, is contained in SerialPort.GetPortNames()</param>
+        static void SerialUserIF(out string port)
+        {
+            #region Serial port
+            // list ports to user
+            Console.WriteLine("Choose the Serial port the device is connected to. \nAvailable Ports are:");
+            foreach (string p in SerialPort.GetPortNames())
+                Console.WriteLine($" {p}");
+
+            // show warning if there are no ports
+            if (SerialPort.GetPortNames().Length <= 0)
+                Console.WriteLine(" No ports available!");
+
+            // read a VALID port name
+            do
+            {
+                port = UserInput("Target Port> ");
+            } while (!SerialPort.GetPortNames().Contains(port));
             #endregion
         }
 

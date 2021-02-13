@@ -34,6 +34,11 @@
         /// last command answered count to read prompt.
         /// read data into buffer and change state back to IDLE once we're back at the brnboot prompt
         /// </summary>
-        DATA_READOUT
+        DATA_READOUT,
+
+        /// <summary>
+        /// upload mode target address prompt
+        /// </summary>
+        UPLOAD_ADDR
     }
 }

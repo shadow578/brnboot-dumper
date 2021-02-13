@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO.Ports;
 using System.Text;
 
@@ -50,7 +51,7 @@ namespace BRNBootDumper
                         }
 
                         // write to debug output
-                        //Debug.Write(c);
+                        Debug.Write(c);
                     }
         }
 
