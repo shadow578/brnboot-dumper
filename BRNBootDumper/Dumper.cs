@@ -38,6 +38,15 @@ namespace BRNBootDumper
         }
 
         /// <summary>
+        /// close the serial connection to the target device
+        /// </summary>
+        public void Close()
+        {
+            if (serial.IsOpen)
+                serial.Close();
+        }
+
+        /// <summary>
         /// dump memory of the device, starting at the startAddr until the endAddr.
         /// </summary>
         /// <param name="output">where to write the dupted memory to</param>
@@ -99,7 +108,7 @@ namespace BRNBootDumper
 
                 // enter start address
                 DB("set start address");
-                WaitForState(START_ADDR);
+                WaitForState(DUMP_START_ADDR);
                 ClearAll();
                 SendWithEnter(ToHex(currentAddress));
 
@@ -261,8 +270,8 @@ namespace BRNBootDumper
         {
             if (ln.EndsWith(PATTERN_PROMPT))
                 return IDLE;
-            else if (ln.Contains(PATTERN_START_ADDR, StringComparison.OrdinalIgnoreCase))
-                return START_ADDR;
+            else if (ln.Contains(PATTERN_READ_START_ADDR, StringComparison.OrdinalIgnoreCase))
+                return DUMP_START_ADDR;
             else if (ln.Contains(PATTERN_DATA_LENGHT, StringComparison.OrdinalIgnoreCase))
                 return DATA_LEN;
             else if (ln.Contains(PATTERN_READ_COUNT, StringComparison.OrdinalIgnoreCase))

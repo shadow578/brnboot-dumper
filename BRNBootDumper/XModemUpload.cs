@@ -41,6 +41,15 @@ namespace BRNBootDumper
         }
 
         /// <summary>
+        /// close the serial connection to the target device
+        /// </summary>
+        public void Close()
+        {
+            if (serial.IsOpen)
+                serial.Close();
+        }
+
+        /// <summary>
         /// use brnboot Upload to memory (M) command to upload data to the device
         /// </summary>
         /// <param name="targetAddress">the target address to upload to</param>
@@ -153,11 +162,11 @@ namespace BRNBootDumper
 
 
             //TODO: execute code
-            Thread.Sleep(100);
-            SendWithEnter("Y");
+            //Thread.Sleep(100);
+            //SendWithEnter("Y");
 
             //TODO: wait 10s for messages from device
-            for(int i = 0; i < 10000; i++)
+            for(int i = 0; i < 2000; i++)
             {
                 Thread.Sleep(1);
             }
@@ -314,8 +323,8 @@ namespace BRNBootDumper
         {
             if (ln.EndsWith(PATTERN_PROMPT))
                 return IDLE;
-            else if (ln.Contains(PATTERN_START_ADDR, StringComparison.OrdinalIgnoreCase))
-                return START_ADDR;
+            else if (ln.Contains(PATTERN_READ_START_ADDR, StringComparison.OrdinalIgnoreCase))
+                return DUMP_START_ADDR;
             else if (ln.Contains(PATTERN_DATA_LENGHT, StringComparison.OrdinalIgnoreCase))
                 return DATA_LEN;
             else if (ln.Contains(PATTERN_READ_COUNT, StringComparison.OrdinalIgnoreCase))

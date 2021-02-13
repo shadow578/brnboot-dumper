@@ -11,7 +11,8 @@ namespace BRNBootDumper
     {
         public static void Main()
         {
-            UploadUI();
+            //UploadUI();
+            WriteUI();
         }
 
 
@@ -20,7 +21,7 @@ namespace BRNBootDumper
             #region User interface
             //show user interface
             SerialUserIF(out string port);
-            UploadUserIF(out long targetAddress, out string filePath);
+            UploadUserIF(out long targetAddress, out string filePath, out bool shouldVerify, out bool shouldVerboseLog);
 
             //print infos and make user confirm
             long fileSize = new FileInfo(filePath).Length;
@@ -32,6 +33,8 @@ File: {filePath}
 File Size: {fileSize}
 Upload Target Address: 0x{ToHex(targetAddress)}
 Upload End Address:    0x{ToHex(targetAddress + fileSize)}
+
+Verify enabled: {(shouldVerify ? "YES" : "NO")} (not in XModem upload mode lol)
 
 Press <ENTER> to start upload");
             Console.ReadLine();
@@ -59,6 +62,102 @@ Press <ENTER> to start upload");
                 //stop timer and print time taken
                 sw.Stop();
                 Console.WriteLine($"Finished uploading to device after {Math.Floor(sw.Elapsed.TotalSeconds)} seconds");
+            }
+        }
+
+        static void WriteUI()
+        {
+            #region User interface
+            //show user interface
+            SerialUserIF(out string port);
+            UploadUserIF(out long targetAddress, out string filePath, out bool shouldVerify, out bool shouldVerboseLog);
+
+            //print infos and make user confirm
+            long fileSize = new FileInfo(filePath).Length;
+            Console.Clear();
+            Console.WriteLine($@"
+Target Device: {port}
+
+File: {filePath}
+File Size: {fileSize}
+Upload Target Address: 0x{ToHex(targetAddress)}
+Upload End Address:    0x{ToHex(targetAddress + fileSize)}
+
+Verify Data: {(shouldVerify ? "YES" : "NO")}
+Verbose Log: {(shouldVerboseLog ? "YES" : "NO")}
+
+Press <ENTER> to start write");
+            Console.ReadLine();
+
+            // double- confirm if any writes are outside of RAM
+            if (targetAddress < BRNBootConstants.START_OF_RAM
+                || targetAddress > BRNBootConstants.END_OF_RAM
+                || fileSize > BRNBootConstants.RAM_SIZE)
+            {
+                Console.WriteLine($@"
+!! WARNING !!
+The Address you entered results in writes OUTSIDE of RAM
+RAM Start: {ToHex(BRNBootConstants.START_OF_RAM)}
+RAM End: {ToHex(BRNBootConstants.END_OF_RAM)}
+RAM Size: {BRNBootConstants.RAM_SIZE}
+
+Press <ENTER> 3x to write anyways");
+                Console.ReadLine();
+                Console.ReadLine();
+                Console.ReadLine();
+            }
+            #endregion
+
+            //initailize memory writer and connect
+            Console.WriteLine("initialize writer");
+            CrappyUpload up = new CrappyUpload
+            {
+                EnableDebugPrints = shouldVerboseLog
+            };
+
+            Console.WriteLine($"connecting to target device on {port}...");
+            up.Open(port);
+
+            // open file
+            using (FileStream file = File.OpenRead(filePath))
+            {
+                // start upload timer
+                Console.WriteLine("Start memory write...");
+                Stopwatch sw = new Stopwatch();
+                sw.Restart();
+
+                // write to device
+                up.Write(file, targetAddress);
+
+                //stop timer and print time taken
+                sw.Stop();
+                up.Close();
+                Console.WriteLine($"Finished writing to device after {Math.Floor(sw.Elapsed.TotalSeconds)} seconds");
+
+                // verify what was actually written if enabled
+                if (shouldVerify)
+                {
+                    // initialize dumper and connect
+                    Console.WriteLine("Verifying written data...");
+                    Dumper d = new Dumper
+                    {
+                        EnableDebugPrints = shouldVerboseLog
+                    };
+
+                    Console.WriteLine($"connecting to target device on {port}...");
+                    d.Open(port);
+
+                    // dump the memory
+                    Console.WriteLine("Dumping memory...");
+                    DumpTimed(d, targetAddress, targetAddress + fileSize, 10000, out MemoryStream verify);
+                    d.Close();
+
+                    // compare streams
+                    if (CheckStreamsEqual(file, verify))
+                        Console.WriteLine("Verification Success");
+                    else
+                        Console.WriteLine("!! Verification failed!");
+                }
             }
         }
 
@@ -219,14 +318,16 @@ Press <ENTER> to start dumping");
         /// </summary>
         /// <param name="targetAddress">the address to upload to</param>
         /// <param name="uploadPath">the file to upload</param>
-        static void UploadUserIF(out long targetAddress, out string uploadPath)
+        /// <param name="verifyWrite">should the written data be verified?</param>
+        /// <param name="verboseLogging">should we write verbose log to console?</param>
+        static void UploadUserIF(out long targetAddress, out string uploadPath, out bool verifyWrite, out bool verboseLogging)
         {
             #region target address
             // ask for target  address
             string tmp;
             do
             {
-                tmp = UserInput($"Upload Target Address (default 0x{ToHex(BRNBootConstants.MEMORY_UPLOAD_DEFAULT_ADDR)})> 0x");
+                tmp = UserInput($"Upload Target Address (default 0x{ToHex(BRNBootConstants.START_OF_RAM)})> 0x");
             } while (!long.TryParse(tmp, NumberStyles.HexNumber, null, out targetAddress));
             #endregion
 
@@ -236,6 +337,20 @@ Press <ENTER> to start dumping");
             {
                 uploadPath = UserInput("Upload file path > ");
             } while (!File.Exists(uploadPath));
+            #endregion
+
+            #region verify write
+            Console.WriteLine("Do you want to verify the written data? (Will take twice as long)");
+            Console.Write("[Y/n]: ");
+            tmp = Console.ReadLine();
+            verifyWrite = !tmp.Equals("n", StringComparison.OrdinalIgnoreCase);
+            #endregion
+
+            #region verbose log
+            Console.WriteLine("Do you want to enable verbose output?");
+            Console.Write("[y/N]: ");
+            tmp = Console.ReadLine();
+            verboseLogging = tmp.Equals("y", StringComparison.OrdinalIgnoreCase);
             #endregion
         }
 
@@ -282,6 +397,10 @@ Press <ENTER> to start dumping");
             // different lenght? cannot be equal
             if (a.Length != b.Length)
                 return false;
+
+            // seek both streams to the beginning
+            a.Seek(0, SeekOrigin.Begin);
+            b.Seek(0, SeekOrigin.Begin);
 
             // test byte- by- byte
             for (int i = 0; i < a.Length; i++)

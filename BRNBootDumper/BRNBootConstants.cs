@@ -9,6 +9,21 @@
         public const int BRN_BAUD_RATE = 115200;
 
         /// <summary>
+        /// the start of ram address (on my device, anyway)
+        /// </summary>
+        public const long START_OF_RAM = 0x80002000;
+
+        /// <summary>
+        /// the end of ram address (on my device, anyway)
+        /// </summary>
+        public const long END_OF_RAM = START_OF_RAM + RAM_SIZE;
+
+        /// <summary>
+        /// the size of the ram (on my device, anyway) -> 64 MiB, idk if this is acutally the right value
+        /// </summary>
+        public const long RAM_SIZE = 67108864; //64 MiB
+
+        /// <summary>
         /// string to send to substitute enter keypress
         /// </summary>
         public const string BRN_ENTER = "\r";
@@ -35,10 +50,11 @@
         /// pattern to match "enter the start address to read: 0x" prompt (use String.contains)
         /// [V9]:
         /// </summary>
-        public const string PATTERN_START_ADDR = "enter the start address to read";
+        public const string PATTERN_READ_START_ADDR = "enter the start address to read";
 
         /// <summary>
         /// pattern to match "data lenght is..." prompt (use String.contains)
+        /// used for both memory read (r) and memory write (w)
         /// [V9]:
         /// </summary>
         public const string PATTERN_DATA_LENGHT = "data length is";
@@ -60,11 +76,34 @@
         /// pattern to match brnboot memory upload target address prmpt
         /// </summary>
         public const string PATTERN_MEMORY_UPLOAD_TARGET_ADDR_PROMPT = "RAM upload destination:";
+        #endregion
+
+        #region memory write, cmd W
 
         /// <summary>
-        /// the default target address for memory upload (start of ram)
+        /// command to enter memory write mode
         /// </summary>
-        public const long MEMORY_UPLOAD_DEFAULT_ADDR = 0x80002000;
+        public const string CMD_MEMORY_WRITE = "w";
+
+        /// <summary>
+        /// pattern to match "enter the start address to write...0x" (use String.contains)
+        /// </summary>
+        public const string PATTERN_WRITE_START_ADDR = "enter the start address to write";
+
+        /// <summary>
+        /// pattern to match "enter the count to write..." (use String.contains)
+        /// </summary>
+        public const string PATTERN_WRITE_COUNT = "enter the count to write";
+
+        /// <summary>
+        /// pattern to match "enter the data to write to the memory" (use String.contains)
+        /// </summary>
+        public const string PATTERN_DATA_TO_WRITE = "enter the data to write to the memory";
+
+        /// <summary>
+        /// pattern to match "Writing Process Completed" message on successfull writes (use String.contains)
+        /// </summary>
+        public const string PATTERN_WRITE_COMPLETED = "writing process completed";
         #endregion
     }
 }

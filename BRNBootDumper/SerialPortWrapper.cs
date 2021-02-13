@@ -13,6 +13,11 @@ namespace BRNBootDumper
         readonly Queue<string> linesBuffer = new Queue<string>();
 
         /// <summary>
+        /// object to lock the serial port to avoid closing while still in a callback
+        /// </summary>
+        readonly object closeLock = new object();
+
+        /// <summary>
         /// the line that is currently beign written. as soon as we get a NewLine, this is written into linesBuffer and cleared
         /// </summary>
         readonly StringBuilder currentLine = new StringBuilder();
@@ -29,30 +34,46 @@ namespace BRNBootDumper
             DataReceived += OnDataReceived;
         }
 
+        public new void Close()
+        {
+            lock (closeLock)
+            {
+                DataReceived -= OnDataReceived;
+                base.Close();
+            }
+        }
+
         /// <summary>
         /// this.DataReceived callback
         /// </summary>
         void OnDataReceived(object sender, SerialDataReceivedEventArgs e)
         {
-            //read all characters into currentLine, push lines into linesBuffer as needed
-            while (BytesToRead > 0)
-                lock (currentLine)
-                    lock (linesBuffer)
-                    {
-                        // read char, write to current line
-                        char c = (char)ReadChar();
-                        currentLine.Append(c);
+            lock (closeLock)
+            {
+                // check port is actually open
+                if (!IsOpen)
+                    return;
 
-                        // if char is \n, push current line into line buffer
-                        if (c == '\n')
+                //read all characters into currentLine, push lines into linesBuffer as needed            
+                while (BytesToRead > 0)
+                    lock (currentLine)
+                        lock (linesBuffer)
                         {
-                            linesBuffer.Enqueue(currentLine.ToString());
-                            currentLine.Clear();
-                        }
+                            // read char, write to current line
+                            char c = (char)ReadChar();
+                            currentLine.Append(c);
 
-                        // write to debug output
-                        Debug.Write(c);
-                    }
+                            // if char is \n, push current line into line buffer
+                            if (c == '\n')
+                            {
+                                linesBuffer.Enqueue(currentLine.ToString());
+                                currentLine.Clear();
+                            }
+
+                            // write to debug output
+                            Debug.Write(c);
+                        }
+            }
         }
 
         /// <summary>
